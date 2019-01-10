@@ -10,8 +10,6 @@
   "author": "Daan de Graaf <daandegraaf9@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.16.4",
-    "express-ws": "^4.0.0",
     "ws": "^6.1.2"
   }
 }

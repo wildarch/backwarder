@@ -2,31 +2,6 @@ const WebSocket = require('ws');
 const net = require('net');
 const EventEmitter = require('events');
 
-/*
-const tcpSocket = net.Socket();
-let connected = false;
-const ws = new WebSocket('ws://localhost:8888');
-
-ws.on('message', data => {
-    if(!connected) {
-        tcpSocket.connect(8000, "localhost");
-        tcpSocket.on('end', () => {
-            console.log("Closed!");
-            ws.terminate();
-        });
-        tcpSocket.on('data', data => {
-            ws.send(data);
-        });
-        connected = true;
-    }
-    tcpSocket.write(data);
-});
-
-ws.on('close', () => {
-    tcpSocket.end();
-});
-*/
-
 class Tunnel extends EventEmitter {
     constructor(socketUrl, tcpHost, tcpPort) {
         super();
@@ -76,7 +51,7 @@ function onTunnelClose() {
     tunnelCounter++;
     console.log("Opening tunnel " + tunnelCounter);
 
-    const tunnel = new Tunnel("ws://localhost:8888", "localhost", 8000);
+    const tunnel = new Tunnel("ws:/localhost:8888", "localhost", 8000);
     tunnel.on('close', () => {
         onTunnelClose();
     });

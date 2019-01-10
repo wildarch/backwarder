@@ -1,53 +1,87 @@
-const express = require('express');
-const app = express();
-const expressWs = require('express-ws')(app);
+const net = require('net');
+const WebSocket = require('ws');
+const EventEmitter = require('events');
+const HTTPParser = process.binding('http_parser').HTTPParser;
 
 const port = process.env.PORT || 8888;
 
-let freeSockets = [];
+class WebsocketRequestParser extends EventEmitter {
+    constructor() {
+        super();
+        this.first_packet = true;
+        this.parser = new HTTPParser(HTTPParser.REQUEST);
+    }
 
+    consume(request_bytes) {
+        const kOnHeadersComplete = HTTPParser.kOnHeadersComplete | 0;
+        this.parser[kOnHeadersComplete] = (versionMajor, 
+            versionMinor, headers, method, url, statusCode, 
+            statusMessage, upgrade, shouldKeepAlive
+        ) => {
+            let req = {
+                method: method === 1 ? 'GET' : null,
+                headers: {},
+            };
+            for(let i = 0; i < headers.length; i += 2) {
+                req.headers[headers[i].toLowerCase()] = headers[i+1];
+            }
+            if(req.headers.upgrade && req.headers.upgrade.toLowerCase() === 'websocket') {
+                // Websocket request
+                this.emit("websocket", req, request_bytes);
+            } else  {
+                // Regular http
+                this.isRegular = true;
+                this.emit("http", req, request_bytes);
+            }
+        }
+        this.parser.execute(request_bytes);
+    }
+}
+
+let freeSockets = [];
 let socketCounter = 0;
 
-app.ws('/', (ws, req) => {
-    freeSockets.push(ws);
-    socketCounter++;
-    console.log("Added backconnect socket " + socketCounter);
-});
+const server = new net.Server();
+const wss = new WebSocket.Server({ noServer: true });
 
-app.use((req, res) => {
-    const ws = freeSockets.pop();
-
-    // If no free backconnect socket is available, report temporarily unavailable.
-    if(!ws) {
-        res.status(503);
-        res.end();
-        return;
-    }
-
-    // Reconstruct HTTP Header
-    ws.send(Buffer.from(req.method + " " + req.originalUrl + " HTTP/1.1\r\n"));
-    for(let header in req.headers) {
-        if(req.headers.hasOwnProperty(header)) {
-            ws.send(Buffer.from(header + ": " + req.headers[header] + "\r\n"));
+server.on('connection', socket => {
+    const parser = new WebsocketRequestParser();
+    parser.on('websocket', (req, data) => {
+        wss.handleUpgrade(req, socket, data, ws => {
+            freeSockets.push(ws);
+        });
+    });
+    let webSocket = null;
+    parser.on('http', (req, data) => {
+        // Assign a web socket
+        webSocket = freeSockets.pop();
+        if(!webSocket) {
+            socket.end();
+            return;
         }
-    }
-    ws.send(Buffer.from("\r\n"));
+        webSocket.on('message', data => {
+            socket.write(data);
+        });
+        webSocket.on('close', () => {
+            socket.end();
+        });
+        socket.on('end', () => {
+            webSocket.terminate();
+        });
 
-    // Forward data
-    req.on('data', chunk => {
-        ws.send(chunk);
+        // Send header data
+        webSocket.send(data);
     });
-    ws.on('message', chunk => {
-        res.write(chunk);
-    });
-
-    // Synchronize close
-    ws.on('close', () => {
-        res.end();
-    });
-    req.on('close', () => {
-        ws.terminate();
+    let first_packet = true;
+    socket.on('data', data => {
+        if(first_packet) {
+            first_packet = false;
+            parser.consume(data);
+        } else if (webSocket) {
+            webSocket.send(data);
+        }
     });
 });
 
-app.listen(port);
+server.listen(port);
+
