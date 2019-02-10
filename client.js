@@ -29,11 +29,16 @@ class Tunnel extends EventEmitter {
       console.log("Websocket end");
       this.onClose();
     });
+
+    this.webSocket.on('error', (e) => {
+      console.error("Websocket error: ", e);
+      this.onClose();
+    });
   }
 
   close() {
     this.tcpSocket.end();
-    this.webSocket.terminate();
+    this.webSocket.close(1000, "TCP socket closed");
     this.connected = false;
   }
 
