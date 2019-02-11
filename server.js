@@ -25,7 +25,8 @@ class WebsocketRequestParser extends EventEmitter {
             req.headers[headers[i].toLowerCase()] = headers[i + 1];
           }
           if (req.headers.upgrade &&
-              req.headers.upgrade.toLowerCase() === 'websocket') {
+              req.headers.upgrade.toLowerCase() === 'websocket' &&
+	      url.endsWith("/backwarder")) {
             // Websocket request
             this.emit("websocket", req, request_bytes);
           } else {
