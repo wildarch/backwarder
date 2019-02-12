@@ -5,8 +5,9 @@ const schedule = require('node-schedule');
 
 function main() {
   let tunnel_host = process.argv[2];
+  let target_port = process.argv[3];
 
-  const manager = new TunnelManager(tunnel_host, "localhost", 8000, 10);
+  const manager = new TunnelManager(tunnel_host, "localhost", target_port, 10);
   manager.start();
   console.log("Ready to rock and roll");
 
@@ -115,7 +116,11 @@ class TunnelManager {
     this.active_tunnels.push(tunnel);
   }
 
-  onTunnelClose(tunnel) { this.addTunnel(); }
+  onTunnelClose(tunnel) { 
+    let idx = this.active_tunnels.indexOf(tunnel);
+    this.active_tunnels.splice(idx, 1);
+    this.addTunnel(); 
+  }
 
   onTunnelError(err, tunnel) {
     if (Date.now() - tunnel.created < 5000) {
