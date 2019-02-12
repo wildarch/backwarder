@@ -26,7 +26,7 @@ class WebsocketRequestParser extends EventEmitter {
           }
           if (req.headers.upgrade &&
               req.headers.upgrade.toLowerCase() === 'websocket' &&
-	      url.endsWith("/backwarder")) {
+              url.endsWith("/backwarder")) {
             // Websocket request
             this.emit("websocket", req, request_bytes);
           } else {
@@ -67,10 +67,12 @@ server.on('connection', socket => {
       console.log("Closed webSocket connection");
       socket.end();
     });
+    webSocket.on('error', e => { console.error("WebSocket error: ", e); });
     socket.on('end', () => {
       console.log("Closed TCP connection");
-      webSocket.terminate();
+      webSocket.close(1000, "TCP Socket closed");
     });
+    socket.on('error', e => { console.error("Socket error: ", e); });
 
     // Send header data
     webSocket.send(data);

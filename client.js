@@ -6,8 +6,10 @@ const schedule = require('node-schedule');
 function main() {
   let tunnel_host = process.argv[2];
   let target_port = process.argv[3];
+  let concurrency = process.argv[4] || 10;
 
-  const manager = new TunnelManager(tunnel_host, "localhost", target_port, 10);
+  const manager =
+      new TunnelManager(tunnel_host, "localhost", target_port, concurrency);
   manager.start();
   console.log("Ready to rock and roll");
 
@@ -43,7 +45,18 @@ class Tunnel extends EventEmitter {
           console.log("Tunnel " + this.id + ":TCP socket end");
           this.onClose();
         });
-        this.tcpSocket.on('data', data => { this.webSocket.send(data); });
+        this.tcpSocket.on('data', data => {
+          if (this.webSocket.readyState == 1) {
+            this.webSocket.send(data)
+          } else {
+            console.warn(
+                "Some data could not be delivered because the webSocket was not ready");
+          }
+        });
+        this.tcpSocket.on('error', e => {
+          console.error("tcp socket error: ", e);
+          this.emit('error', e)
+        });
         this.connected = true;
       }
       this.tcpSocket.write(data);
@@ -116,10 +129,10 @@ class TunnelManager {
     this.active_tunnels.push(tunnel);
   }
 
-  onTunnelClose(tunnel) { 
+  onTunnelClose(tunnel) {
     let idx = this.active_tunnels.indexOf(tunnel);
     this.active_tunnels.splice(idx, 1);
-    this.addTunnel(); 
+    this.addTunnel();
   }
 
   onTunnelError(err, tunnel) {
