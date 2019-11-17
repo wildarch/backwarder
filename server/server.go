@@ -1,4 +1,4 @@
-package main
+package backwarder
 
 import (
     "log"
@@ -24,20 +24,9 @@ func backconnectRegister(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleRequest(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Incoming request for: %s", r.URL)
     ws:=  <-pool
-    var doneWaitGroup sync.WaitGroup
-    doneWaitGroup.Add(2)
-    // Write incoming request to websocket
-    go func() {
-        w, e := ws.NextWriter(websocket.BinaryMessage)
-        defer w.Close()
-        if e != nil {
-            log.Println("Could not obtain a writer for the request: ", e)
-        } else {
-            r.WriteProxy(w)
-        }
-        doneWaitGroup.Done()
-    }()
+
     // Write data returned from the websocket
     go func() {
         for {
@@ -51,16 +40,29 @@ func handleRequest(w http.ResponseWriter, r *http.Request) {
                 break
             }
             io.Copy(w, r)
+						log.Printf("Written response to websocket")
         }
-        doneWaitGroup.Done()
     }()
-    doneWaitGroup.Wait()
-    log.Println("Request served")
+
+		// Write the request to the websocket
+		wsW, e := ws.NextWriter(websocket.BinaryMessage)
+		defer wsW.Close()
+		if e != nil {
+				log.Println("Could not obtain a writer for the request: ", e)
+		} else {
+				r.WriteProxy(wsW)
+		}
+		log.Printf("Written request to websocket")
+}
+
+func GetServeMux(backconnectPath string) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc(backconnectPath, backconnectRegister)
+	mux.HandleFunc("/", handleRequest)
+	return mux
 }
 
 func main() {
     log.Println("Hello, world!")
-    http.HandleFunc(*backconnectPath, backconnectRegister)
-    http.HandleFunc("/", handleRequest)
-    log.Fatal(http.ListenAndServe(*bindAddr,  nil))
+    log.Fatal(http.ListenAndServe(*bindAddr,  GetServeMux(*backconnectPath)))
 }
