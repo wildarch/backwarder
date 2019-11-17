@@ -1,28 +1,28 @@
 package backwarder
 
 import (
-	"testing"
-	"net/http/httptest"
-	"github.com/gorilla/websocket"
-	"strings"
-	"net/http"
-	"time"
-	"bytes"
 	"bufio"
+	"bytes"
+	"github.com/gorilla/websocket"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
 )
 
 func TestSingleRequest(t *testing.T) {
-	backwarder := httptest.NewServer(GetServeMux("/backconnect"));
+	backwarder := httptest.NewServer(GetServeMux("/backconnect"))
 	defer backwarder.Close()
-
-	wsUrl := strings.Replace(backwarder.URL + "/backconnect", "http://", "ws://", 1)
-
+	wsUrl := strings.Replace(backwarder.URL+"/backconnect", "http://", "ws://", 1)
 	client, _, err := websocket.DefaultDialer.Dial(wsUrl, nil)
 	if err != nil {
 		t.Fatalf("Couldn't open client: %s", err)
 	}
-	defer client.Close()
 	go func() {
+		defer client.Close()
+
+		// Read the incoming request
 		msgType, reader, err := client.NextReader()
 		if err != nil {
 			t.Fatalf("Failed to read message on websocket: %s", err)
@@ -44,11 +44,10 @@ func TestSingleRequest(t *testing.T) {
 		if body != "" {
 			t.Fatalf("Unexpected body: '%s'", body)
 		}
-
-		res := http.Response {
-			Status: "200 OK",
+		res := http.Response{
+			Status:     "200 OK",
 			StatusCode: 200,
-			Proto: "HTTP/1.1",
+			Proto:      "HTTP/1.1",
 			ProtoMajor: 1,
 			ProtoMinor: 1,
 		}
@@ -56,15 +55,16 @@ func TestSingleRequest(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Couldn't open a writer on the websocket: %s", err)
 		}
-		defer writer.Close()
 		res.Write(writer)
+		writer.Close()
 	}()
 
-	httpClient := &http.Client {
+	httpClient := &http.Client{
 		Timeout: time.Second * 3,
 	}
 	res, err := httpClient.Get(backwarder.URL)
 	t.Log("Sent HTTP request")
+
 	if err != nil {
 		t.Fatalf("GET failed: %s", err)
 	}
